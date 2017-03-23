@@ -2,7 +2,7 @@
 
 ## Description
 
-The client consists of a CLI (partly using curses) and a GUI (based on Qt5 via PyQt5). Both interfaces are capable of connecting to a CMS50EW device either via USB/serial or Bluetooth, display live data and download recorded sessions. Session data can be saved as a CSV file and plotted using Pygal (export to SVG supported) or Matplotlib.
+The client consists of a CLI (partly using curses) and a GUI (based on Qt5 via PyQt5). Both interfaces are capable of connecting to a CMS50EW device either via USB/serial or Bluetooth, displaying live data and downloading recorded sessions. Session data can be saved as a CSV file and plotted using Pygal (export to SVG supported) or Matplotlib.
 
 ## Usage (CLI)
 usage: cms50ew_cli.py [-h] {live,download} ...
