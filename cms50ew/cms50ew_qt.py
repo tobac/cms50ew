@@ -79,7 +79,7 @@ class MainWindow(QMainWindow):
             self.live_running = True
             thread = LiveThread(self.oxi)
             thread.run_threaded()
-            self.liveRunAction.setIcon(QtGui.QIcon('icons/media-playback-pause-symbolic.svg'))
+            self.liveRunAction.setIcon(QtGui.QIcon('icons/media-playback-stop-symbolic.svg'))
             self.sessDialogAction.setEnabled(False)
             self.statusBar.showMessage('Status: Initiating live stream ...')
         else:
