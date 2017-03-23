@@ -15,7 +15,7 @@ positional arguments:
 optional arguments:
   -h, --help       show this help message and exit
 
-### Usage for 'live' action
+### Usage of 'live' action
 usage: cms50ew_cli.py live [-h] [-b] device
 
 positional arguments:
