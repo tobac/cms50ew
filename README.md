@@ -47,23 +47,30 @@ optional arguments:
 ## Examples
 
 ### Start Qt5 interface
+```
 ./cms50ew_qt.py
+```
 
 ### Stream live data from a device connected via USB on /dev/ttyUSB0
+```
 ./cms50ew_cli.py live /dev/ttyUSB0
-
+```
 ### Stream live data from a device (MAC address: XX:XX:XX:XX:XX:XX) connected via Bluetooth
+```
 ./cms50ew_cli.py live -b XX:XX:XX:XX:XX:XX
-
+```
 ### Save recorded data to CSV file /tmp/session.csv
+```
 ./cms50ew_cli.py download --csv /tmp/session.csv /dev/ttyUSB0
-
+```
 ### Plot recorded data using Pygal and save plot to SVG file
+```
 ./cms50ew_cli.py download -b --pygal /tmp/session.svg XX:XX:XX:XX:XX:XX
-
+```
 ### Plot recorded data using Matplotlib and display it via Matplotlib's internal viewer
+```
 ./cms50ew_cli.py download --mpl /dev/ttyUSB0
-
+```
 ## Screenshots
 
 ### Qt5 interface
