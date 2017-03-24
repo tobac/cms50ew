@@ -250,7 +250,7 @@ class CMS50EW():
         line_chart.title = 'Pulse rate and SpO2'
         line_chart.x_labels = x_labels
         line_chart.x_labels_major = x_labels_major
-        line_chart.add('Pulse rate [bpm]', [data[2] for data in self.stored_data])
+        line_chart.add('Pulse [bpm]', [data[2] for data in self.stored_data])
         line_chart.add('SpO2 [%]', [data[3] for data in self.stored_data], secondary=True)
         
         self.chart = line_chart.render(width=1800)

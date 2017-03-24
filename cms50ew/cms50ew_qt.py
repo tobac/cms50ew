@@ -8,7 +8,7 @@ import numpy as np
 import time
 import threading
 import sys
-# Bluetooth is imported solely to handel exceptions; needs some rethinking.
+# Bluetooth is imported solely to handle exceptions; needs some rethinking.
 import bluetooth
 import cms50ew
 
@@ -103,7 +103,8 @@ class MainWindow(QMainWindow):
             self.sessDialogAction.setEnabled(True)
             
     def on_liveSaveAction(self):
-        pass
+        self.saveDialog = LiveSaveDialog()
+        self.saveDialog.exec_()
     
     def on_quitAction(self):
         self.live_running = False
@@ -142,12 +143,82 @@ class MainWidget(QWidget):
         layout.addWidget(pulse_plot, 2, 0, 1, 1)
         layout.addWidget(spo2_plot, 2, 1, 1, 1)
         
+class LiveSaveDialog(QDialog):
+    def __init__(self):
+        super().__init__()
+        
+        self.setWindowTitle('Save live data')
+        self.setWindowIcon(QtGui.QIcon('icons/pulse.svg'))
+        
+        self.buttonBox = QtGui.QDialogButtonBox(self)
+        self.buttonBox.setOrientation(QtCore.Qt.Horizontal)
+        self.buttonBox.setStandardButtons(QtGui.QDialogButtonBox.Cancel)
+        self.buttonBox.rejected.connect(self.close)
+        
+        self.plotPygalButton = QtGui.QPushButton(self)
+        self.plotPygalButton.setText('Plot with Pygal')
+        self.plotPygalButton.clicked.connect(self.on_plotPygal)
+        
+        self.plotMplButton = QtGui.QPushButton(self)
+        self.plotMplButton.setText('Plot with Matplotlib')
+        self.plotMplButton.clicked.connect(self.on_plotMpl)
+        
+        self.saveCSVButton = QtGui.QPushButton(self)
+        self.saveCSVButton.setText('Save data as CSV file')
+        self.saveCSVButton.clicked.connect(self.on_saveCSV)
+        
+        self.verticalLayout = QtGui.QVBoxLayout(self)
+        self.verticalLayout.addWidget(self.plotPygalButton)
+        self.verticalLayout.addWidget(self.plotMplButton)
+        self.verticalLayout.addWidget(self.saveCSVButton)
+        self.verticalLayout.addWidget(self.buttonBox)
+        
+        self.build_data_list()
+        
+    def build_data_list(self):
+        # Empty list in case a session was download before
+        w.oxi.stored_data = []
+        data_point = 0
+        while data_point != w.oxi.n_data_points:
+            # The device sends approx. 60 data points per second.
+            # To save two per second is plenty, I think.
+            if (data_point % 30) == 0:
+                # Build list of values in format [time, finger_status, pulse_rate, spo2_value]
+                values = [ w.oxi.pulse_xdata[data_point], w.oxi.finger_data[data_point],
+                          w.oxi.pulse_ydata[data_point], w.oxi.spo2_ydata[data_point]]
+                # Append value list to stored_data list.
+                w.oxi.stored_data.append(values)
+            data_point += 1
+        print(w.oxi.stored_data)
+        print(len(w.oxi.stored_data))
+        print(w.oxi.n_data_points)
+            
+        
+    def on_plotPygal(self):
+        self.close()
+        plotPygal = PlotPygal()
+        plotPygal.exec_()
+        
+    def on_plotMpl(self):
+        self.close()
+        w.oxi.plot_mpl()
+        
+    def on_saveCSV(self):
+        self.close()
+        filename = QFileDialog.getSaveFileName(self)[0]
+        if filename:
+            print(filename)
+            w.oxi.write_csv(filename)
+        else:
+            print('No file selected')
+        
 class SessionDialog(QDialog):
     def __init__(self):
         super().__init__()
         
         self.setWindowTitle('Select stored data')
         self.setWindowIcon(QtGui.QIcon('icons/pulse.svg')) 
+        
         self.buttonBox = QtGui.QDialogButtonBox(self)
         self.buttonBox.setOrientation(QtCore.Qt.Horizontal)
         self.buttonBox.setStandardButtons(QtGui.QDialogButtonBox.Cancel)
