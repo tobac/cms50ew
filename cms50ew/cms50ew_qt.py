@@ -19,16 +19,29 @@ class MainWindow(QMainWindow):
         btDialogAction = QAction(QtGui.QIcon('icons/network-bluetooth.svg'),
                                  'Open Bluetooth device', self)
         btDialogAction.triggered.connect(self.on_btDialogAction)
-        serDialogAction = QAction(QtGui.QIcon('icons/usb.svg'), 'Open USB device', self)
+        
+        serDialogAction = QAction(QtGui.QIcon('icons/usb.svg'), 
+                                  'Open USB device', self)
         serDialogAction.triggered.connect(self.on_serDialogAction)
-        self.sessDialogAction = QAction(QtGui.QIcon('icons/appointment-new.svg'), 'Retrieve recorded data', self)
+        
+        self.sessDialogAction = QAction(QtGui.QIcon('icons/appointment-new.svg'), 
+                                        'Retrieve recorded data', self)
         self.sessDialogAction.setEnabled(False)
         self.sessDialogAction.triggered.connect(self.on_sessDialogAction)
-        self.liveRunAction = QAction(QtGui.QIcon('icons/media-playback-start-symbolic.svg'), 'Retrieve live data', self)
+        
+        self.liveRunAction = QAction(QtGui.QIcon('icons/media-playback-start-symbolic.svg'), 
+                                     'Retrieve live data', self)
         self.liveRunAction.setEnabled(False)
-        self.liveRunAction.triggered.connect(self.run)
+        self.liveRunAction.triggered.connect(self.on_liveRunAction)
         self.live_running = False
-        quitAction = QAction(QtGui.QIcon('icons/application-exit-symbolic.svg'),'Quit', self)
+        
+        self.liveSaveAction = QAction(QtGui.QIcon('icons/document-save-as-symbolic.svg'), 
+                                      'Save recorded live data', self)
+        self.liveSaveAction.setEnabled(False)
+        self.liveSaveAction.triggered.connect(self.on_liveSaveAction)
+        
+        quitAction = QAction(QtGui.QIcon('icons/application-exit-symbolic.svg'),
+                             'Quit', self)
         quitAction.setShortcut('Ctrl+q')
         quitAction.triggered.connect(self.on_quitAction)
         
@@ -41,6 +54,8 @@ class MainWindow(QMainWindow):
         toolBar.addAction(serDialogAction)
         toolBar.addSeparator()
         toolBar.addAction(self.liveRunAction)
+        toolBar.addAction(self.liveSaveAction)
+        toolBar.addSeparator()
         toolBar.addAction(self.sessDialogAction)
         toolBar.addWidget(spacer)
         toolBar.addAction(quitAction)
@@ -70,11 +85,7 @@ class MainWindow(QMainWindow):
         self.sessDialog = SessionDialog()
         self.sessDialog.exec_()
         
-    def on_quitAction(self):
-        self.live_running = False
-        app.quit()
-        
-    def run(self):
+    def on_liveRunAction(self):
         if not self.live_running:
             self.live_running = True
             thread = LiveThread(self.oxi)
@@ -88,7 +99,15 @@ class MainWindow(QMainWindow):
             self.oxi.setup_device(self.oxi.target, is_bluetooth=self.oxi.is_bluetooth)
             self.liveRunAction.setIcon(QtGui.QIcon('icons/media-playback-start-symbolic.svg'))
             self.statusBar.showMessage('Status: Disconnected')
+            self.liveSaveAction.setEnabled(True)
             self.sessDialogAction.setEnabled(True)
+            
+    def on_liveSaveAction(self):
+        pass
+    
+    def on_quitAction(self):
+        self.live_running = False
+        app.quit()
 
 class MainWidget(QWidget):
     def __init__(self):
@@ -492,10 +511,27 @@ class LiveThread():
                 # if oxi.close_device is called while thread is running
                 if w.live_running:
                     print('Something happened.\nRestarting live feed ...')
+    
+    def append_plot_data(self, pulse_rate, spo2):
+        """
+        Helper function for self.update_plot() to append the actual live 
+        data to the lists which get plotted eventually.
+        """
+        # Pulse rate and finger can be supplied as arguments to support appending
+        # 'Finger out' and 'Low signal quality' events; see self.update_plot() 
+        # for more details
+        self.oxi.timer = time.time()
+        self.oxi.pulse_xdata.append(self.oxi.timer - self.starttime)
+        self.oxi.pulse_ydata.append(pulse_rate)
+        self.oxi.spo2_xdata.append(self.oxi.timer - self.starttime)
+        self.oxi.spo2_ydata.append(spo2)
+        self.oxi.finger_data.append(self.finger)
+        
     def update_plot(self, starttime):
         """Feeds plotting process with live data."""
 
         # The following variables serve to update the status only once if nothing changes
+        self.starttime = starttime
         finger_out = False
         low_signal_quality = False
         processing_data = False
@@ -506,12 +542,15 @@ class LiveThread():
     
         while w.live_running:
             data = w.oxi.process_data()
-            finger = data[0]
-            pulse_rate = data[1]
-            spo2 = data[2]
+            self.finger = data[0]
+            self.pulse_rate = data[1]
+            self.spo2 = data[2]
     
-            if finger == 'Y':
+            if self.finger == 'Y':
+                # The counter serves to suppress small hiccups where the device reports
+                # "Finger out" when it in fact isn't.
                 if not finger_out and (counter > 10):
+                    self.append_plot_data(0, 0)
                     w.statusBar.showMessage('Status: Finger out')
                     w.cw.label_pulse_rate.setText('Pulse rate: n/a')
                     w.cw.label_spo2.setText('SpO2: n/a')
@@ -521,8 +560,17 @@ class LiveThread():
                     processing_data = False
                     counter = 0
                 elif not finger_out and (counter < 11):
+                    # If there have been less than 11 "Finger out" events, just
+                    # append the last valid value.
+                    self.append_plot_data(self.oxi.pulse_ydata[-1],
+                                          self.oxi.spo2_ydata[-1])
                     counter += 1
-            elif (pulse_rate == 0) or (spo2 == 0):
+                else:
+                    # If 'finger_out' is 'True', also supply '0' values.
+                    self.append_plot_data(pulse_rate=0, spo2=0)
+                    
+            elif (self.pulse_rate == 0) or (self.spo2 == 0):
+                self.append_plot_data(0, 0)
                 if not low_signal_quality:
                     w.statusBar.showMessage('Status: Low signal quality')
                     w.cw.label_pulse_rate.setText('Pulse rate: n/a')
@@ -532,26 +580,21 @@ class LiveThread():
                     low_signal_quality = True
                     processing_data = False
             else:
-                self.oxi.timer = time.time()
-                self.oxi.pulse_xdata.append(self.oxi.timer - starttime)
-                self.oxi.pulse_ydata.append(pulse_rate)
-                self.oxi.spo2_xdata.append(self.oxi.timer - starttime)
-                self.oxi.spo2_ydata.append(spo2)
-            
-                if (self.oxi.n_data_points % 20) == 0:
-                    w.cw.pulse_curve.setData(self.oxi.pulse_xdata, self.oxi.pulse_ydata)
-                    w.cw.spo2_curve.setData(self.oxi.spo2_xdata, self.oxi.spo2_ydata)
-                
-                    w.cw.label_pulse_rate.setText(str('Pulse rate: ' + str(pulse_rate) + 
-                                              ' bpm'))
-                    w.cw.label_spo2.setText(str('SpO2: ' + str(spo2) + ' %'))
+                self.append_plot_data(self.pulse_rate, self.spo2)
                 if not processing_data:
                     w.statusBar.showMessage('Status: Processing data ...')
                 finger_out = False
                 low_signal_quality = False
                 processing_data = True
-            
-                self.oxi.n_data_points += 1
+                
+            if (self.oxi.n_data_points % 20) == 0:
+                w.cw.pulse_curve.setData(self.oxi.pulse_xdata, self.oxi.pulse_ydata)
+                w.cw.spo2_curve.setData(self.oxi.spo2_xdata, self.oxi.spo2_ydata)
+                
+                w.cw.label_pulse_rate.setText(str('Pulse rate: ' + str(self.pulse_rate) + ' bpm'))
+                w.cw.label_spo2.setText(str('SpO2: ' + str(self.spo2) + ' %'))
+
+            self.oxi.n_data_points += 1
             
 if __name__ == '__main__':
     app = QApplication(sys.argv)

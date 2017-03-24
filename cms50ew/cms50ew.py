@@ -11,7 +11,7 @@ import csv
 class CMS50EW():
     """Class to instantiate a CMS50EW pulse oximeter."""
     def __init__(self):
-        self.pulse_xdata, self.pulse_ydata, self.spo2_xdata, self.spo2_ydata = [[], [], [], []]
+        self.pulse_xdata, self.pulse_ydata, self.spo2_xdata, self.spo2_ydata, self.finger_data = [[0], [0], [0], [0], ['Y']]
         self.n_data_points = 0
         self.timer = 0
         self.stored_data = []
