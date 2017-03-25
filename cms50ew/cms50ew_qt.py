@@ -88,8 +88,8 @@ class MainWindow(QMainWindow):
     def on_liveRunAction(self):
         if not self.live_running:
             self.live_running = True
-            thread = LiveThread(self.oxi)
-            thread.run_threaded()
+            self.liveThread = LiveThread(self.oxi)
+            self.liveThread.start()
             self.liveRunAction.setIcon(QtGui.QIcon('icons/media-playback-stop-symbolic.svg'))
             self.sessDialogAction.setEnabled(False)
             self.statusBar.showMessage('Status: Initiating live stream ...')
@@ -356,14 +356,15 @@ class PlotPygal(QDialog):
             print('No file selected')
 
 class DownloadDataThread(QtCore.QThread):
-    """This feels very inelegant. Maybe put the downloadData logic in the thread?"""
+    """Downloads stored session data as a thread to allow UI responsiveness"""
     def __init__(self):
         super().__init__()
         
     def run(self):
         self.diag = DownloadData()
         self.diag.show()
-        time.sleep(0.1) # Allow the window to be constructed to avoid crash when download is finished too fast
+        time.sleep(0.1) # Allow the window to be constructed to avoid crash when 
+                        # download is finished too fast
         self.downloadData()
 
     def downloadData(self):
@@ -557,15 +558,16 @@ class DeviceDialog(QDialog):
             w.statusBar.showMessage('Status: Connection attempt unsuccessful')
             self.close()
 
-class LiveThread():
+class LiveThread(QtCore.QThread):
     def __init__(self, oxi):
+        super().__init__()
         self.oxi = oxi
         
-    def run_threaded(self):
-        """Runs update_plot as a thread."""
-        threading.Thread(target=self.init_live_data, name="_proc").start()
+#    def run_threaded(self):
+#        """Runs update_plot as a thread."""
+#        threading.Thread(target=self.init_live_data, name="_proc").start()
 
-    def init_live_data(self):
+    def run(self):
         """
         Initiates live data feed and keeps it alive as long as our main QWidget is running.
         """
