@@ -223,12 +223,18 @@ class CMS50EW():
         else:
             self.ser.close()
     
-    def plot_pygal(self):
+    def plot_pygal(self, live=False):
         """Plots stored session data as Pygal line chart."""
-        # Show only approximately 10 labels
-        x_labels_every = int(round((len(self.stored_data) / 10), -1))
-        # Round to nearest multiple of 30 to get nice numbers
-        x_labels_every = x_labels_every - (x_labels_every % 30) 
+
+        if live:
+            x_labels_every = int(round((len(self.stored_data) / 10)))
+        else:
+            # Show only approximately 10 labels
+            x_labels_every = int(round((len(self.stored_data) / 10), -1))
+            # Round to nearest multiple of 30 to get nice numbers (recorded data
+            # consists of a data point every 3 seconds)
+            x_labels_every = x_labels_every - (x_labels_every % 30)
+        print('X_labels_every:', x_labels_every)
         x_labels = []
         # Pygal's major labels feature is used to display a reasonable amount of labels
         x_labels_major = []
@@ -238,9 +244,15 @@ class CMS50EW():
                 x_labels_major.append(None)
                 x_labels_n += 1
             else:
-                x_labels_major.append(time)
+                if live:
+                    x_labels_major.append(round(time, 1))
+                else:
+                    x_labels_major.append(time)
                 x_labels_n = 1
-            x_labels.append(time)
+            if live:
+                x_labels.append(round(time, 1))
+            else:
+                x_labels.append(time)
                 
         line_chart = pygal.Line(truncate_label=-1, 
                                 x_title='Time [s]', 

@@ -6,7 +6,6 @@ from PyQt5.QtWebEngineWidgets import QWebEngineView
 import pyqtgraph as pg
 import numpy as np
 import time
-import threading
 import sys
 # Bluetooth is imported solely to handle exceptions; needs some rethinking.
 import bluetooth
@@ -99,6 +98,8 @@ class MainWindow(QMainWindow):
             self.oxi.setup_device(self.oxi.target, is_bluetooth=self.oxi.is_bluetooth)
             self.liveRunAction.setIcon(QtGui.QIcon('icons/media-playback-start-symbolic.svg'))
             self.statusBar.showMessage('Status: Disconnected')
+            self.label_pulse_rate = QtGui.QLabel('Pulse rate: n/a')
+            self.label_spo2 = QtGui.QLabel('SpO2: n/a')
             self.liveSaveAction.setEnabled(True)
             self.sessDialogAction.setEnabled(True)
             
@@ -178,16 +179,21 @@ class LiveSaveDialog(QDialog):
     def build_data_list(self):
         # Empty list in case a session was download before
         w.oxi.stored_data = []
-        data_point = 0
+        data_point = 1 # Skip first points as they have hard-coded values
+        counter = 1
+        save_every = round((len(w.oxi.pulse_xdata) / w.oxi.pulse_xdata[-1]) * 2)
         while data_point != w.oxi.n_data_points:
             # The device sends approx. 60 data points per second.
             # To save two per second is plenty, I think.
-            if (data_point % 30) == 0:
+            if counter == save_every:
                 # Build list of values in format [time, finger_status, pulse_rate, spo2_value]
                 values = [ w.oxi.pulse_xdata[data_point], w.oxi.finger_data[data_point],
                           w.oxi.pulse_ydata[data_point], w.oxi.spo2_ydata[data_point]]
                 # Append value list to stored_data list.
                 w.oxi.stored_data.append(values)
+                counter = 1
+            else:
+                counter += 1
             data_point += 1
         print(w.oxi.stored_data)
         print(len(w.oxi.stored_data))
@@ -196,7 +202,7 @@ class LiveSaveDialog(QDialog):
         
     def on_plotPygal(self):
         self.close()
-        plotPygal = PlotPygal()
+        plotPygal = PlotPygal(live=True)
         plotPygal.exec_()
         
     def on_plotMpl(self):
@@ -324,8 +330,11 @@ class SessionDialog(QDialog):
             print('No file selected')
             
 class PlotPygal(QDialog):
-    def __init__(self):
+    def __init__(self, live=False):
         super().__init__()
+        
+        self.live = live
+        
         self.setWindowTitle('Saved session plotted with Pygal')
         self.setWindowIcon(QtGui.QIcon('icons/pulse.svg')) 
         
@@ -342,7 +351,7 @@ class PlotPygal(QDialog):
         self.plotPygal()
         
     def plotPygal(self):
-        w.oxi.plot_pygal()
+        w.oxi.plot_pygal(live=self.live)
         
         self.webW.setContent(w.oxi.chart, mimeType='image/svg+xml')
         self.show()
@@ -562,10 +571,6 @@ class LiveThread(QtCore.QThread):
     def __init__(self, oxi):
         super().__init__()
         self.oxi = oxi
-        
-#    def run_threaded(self):
-#        """Runs update_plot as a thread."""
-#        threading.Thread(target=self.init_live_data, name="_proc").start()
 
     def run(self):
         """
