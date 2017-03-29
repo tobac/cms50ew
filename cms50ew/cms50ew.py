@@ -14,6 +14,7 @@ class CMS50EW():
         self.pulse_xdata, self.pulse_ydata, self.spo2_xdata, self.spo2_ydata, self.finger_data = [[0], [0], [0], [0], ['Y']]
         self.n_data_points = 0
         self.timer = 0
+        self.starttime = 0
         self.stored_data = []
         self.stored_data_time = 0
         # Most of the following commands we don't use. They are just there as
@@ -292,7 +293,14 @@ class CMS50EW():
         """Writes Pygal plot as SVG."""
         with open(filename, 'wb') as file:
             file.write(self.chart)
-        
+            
+    def erase_session(self):
+        """
+        Erases the stored session from the device.
+        Doesn't work right now.
+        """
+        self.send_cmd(self.cmd_session_erase)
+        print('Sent erase command')
         
 class DeviceScan():
     """Scans for serial or Bluetooth devices."""

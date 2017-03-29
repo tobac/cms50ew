@@ -4,47 +4,71 @@ import argparse
 import curses
 import cms50ew
 import sys
+import time
+import signal
 import bluetooth
 
 def main(stdscr):
     """Sets up a curses screen."""
-
-    curses.init_pair(1, curses.COLOR_GREEN, curses.COLOR_BLACK)
-    curses.init_pair(2, curses.COLOR_CYAN, curses.COLOR_BLACK)
-    curses.curs_set(0)
-    stdscr.nodelay(1)
     
-    global stdscr_height
-    stdscr_height = stdscr.getmaxyx()[0]
+    if not args.raw:
+        curses.init_pair(1, curses.COLOR_GREEN, curses.COLOR_BLACK)
+        curses.init_pair(2, curses.COLOR_CYAN, curses.COLOR_BLACK)
+        curses.curs_set(0)
+        stdscr.nodelay(1)
     
-    def no_data(status):
+        global stdscr_height
+        stdscr_height = stdscr.getmaxyx()[0]
+    
+    def no_data(status, finger):
         """Updates screen when no data is available."""
-        stdscr.clear()
-        stdscr.addstr(0, 0, 'Pulse rate: ')
-        stdscr.addstr('n/a', curses.A_BOLD)
-        stdscr.addstr(1, 0, 'SpO2: ')
-        stdscr.addstr('n/a', curses.A_BOLD)
-        stdscr.addstr(2, 0, 'Status: ')
-        stdscr.addstr(status, curses.A_BLINK)
-        stdscr.addstr(stdscr_height - 1, 0, "Press 'q' to quit")
-        stdscr.refresh()
+
+        if not args.raw:
+            stdscr.clear()
+            stdscr.addstr(0, 0, 'Pulse rate: ')
+            stdscr.addstr('n/a', curses.A_BOLD)
+            stdscr.addstr(1, 0, 'SpO2: ')
+            stdscr.addstr('n/a', curses.A_BOLD)
+            stdscr.addstr(2, 0, 'Status: ')
+            stdscr.addstr(status, curses.A_BLINK)
+            stdscr.addstr(stdscr_height - 1, 0, "Press 'q' to quit")
+            stdscr.refresh()
+        else:
+            if status == oxi.old_status:
+                pass # No change -> no output
+            else:
+                print(finger, 0, 0)
+                oxi.old_status = status
         
-    def data_update(status, pulse_rate, spo2):
-        """Updates screen."""
-        stdscr.clear()
-        stdscr.addstr(0, 0, 'Pulse rate: ')
-        stdscr.addstr(str(pulse_rate), curses.color_pair(1) | curses.A_BOLD)
-        stdscr.addstr(' bpm')
-        stdscr.addstr(1, 0, 'SpO2: ')
-        stdscr.addstr(str(spo2), curses.color_pair(2) | curses.A_BOLD)
-        stdscr.addstr(' %')
-        stdscr.addstr(2, 0, 'Status: ')
-        stdscr.addstr(status)
-        stdscr.addstr(stdscr_height - 1, 0, "Press 'q' to quit")
-        stdscr.refresh()
+    def data_update(status, finger, pulse_rate, spo2):
+        """Updates screen"""
+        if not args.raw:
+            stdscr.clear()
+            stdscr.addstr(0, 0, 'Pulse rate: ')
+            stdscr.addstr(str(pulse_rate), curses.color_pair(1) | curses.A_BOLD)
+            stdscr.addstr(' bpm')
+            stdscr.addstr(1, 0, 'SpO2: ')
+            stdscr.addstr(str(spo2), curses.color_pair(2) | curses.A_BOLD)
+            stdscr.addstr(' %')
+            stdscr.addstr(2, 0, 'Status: ')
+            stdscr.addstr(status)
+            stdscr.addstr(stdscr_height - 1, 0, "Press 'q' to quit")
+            stdscr.refresh()
+        else:
+            if pulse_rate == oxi.old_pulse_rate and spo2 == oxi.old_spo2:
+                pass # No change -> no output
+            else:
+                print(finger, pulse_rate, spo2)
+                oxi.old_pulse_rate = pulse_rate
+                oxi.old_spo2 = spo2
 
     def init_live_data():
         """Initiates live data feed and keeps it alive."""
+        if args.raw: # Initiate variables to hold old values
+            oxi.old_pulse_rate = -1
+            oxi.old_spo2 = -1
+            oxi.old_status = 'No status'
+        oxi.starttime = time.time()
         while True:
             oxi.initiate_device()
             oxi.send_cmd(oxi.cmd_get_live_data)
@@ -56,53 +80,79 @@ def main(stdscr):
                 pass
         
     def update_live_data():
-        """Gets live data from oximeter instance and displays it."""
+        """Gets live data from oximeter instance, stores and displays it."""
         finger_out = False
         low_signal_quality = False
         global stdscr_height
         counter = 0
         
         while True:
-            c = stdscr.getch()
             data = oxi.process_data()
             finger = data[0]
             pulse_rate = data[1]
             spo2 = data[2]
-            if c == ord('q'):
-                oxi.close_device()
-                sys.exit()
-            elif c == curses.KEY_RESIZE:
-                stdscr_height = stdscr.getmaxyx()[0]
+            
+            # Store live session data in object once every second
+            oxi.timer = time.time()
+            delta_time = oxi.timer - oxi.starttime
+            if not oxi.stored_data: # Might still be empty
+                if delta_time > 1:
+                    oxi.stored_data.append([round(delta_time), finger, pulse_rate, spo2])
+            else:
+                if delta_time - oxi.stored_data[-1][0] > 1: # Save one data set per sec
+                    oxi.stored_data.append([round(delta_time), finger, pulse_rate, spo2])
+            
+            if not args.raw:
+                c = stdscr.getch()
+                if c == ord('q'):
+                    if args.csv:
+                        print('\nSaving live session data to: ' + str(args.csv) + ' ...')
+                        oxi.write_csv(args.csv)
+                    oxi.close_device()
+                    sys.exit()
+                elif c == curses.KEY_RESIZE:
+                    stdscr_height = stdscr.getmaxyx()[0]
                 
             if finger == 'Y':
                 # The counter > n condition serves to suppress hiccups where
                 # the oximeter reports "Finger out" when it isn't.
                 if not finger_out and counter > 10:
-                    no_data('Finger out')
+                    no_data('Finger out', finger)
                     finger_out = True
                     low_signal_quality = False
                     counter = 0
                 elif not finger_out and counter < 11:
                     counter += 1
             elif (pulse_rate == 0) or (spo2 == 0):
-                    no_data('Low signal quality')
+                    no_data('Low signal quality', finger)
                     finger_out = False
                     low_signal_quality = True
             else:
-                data_update('Processing data', pulse_rate, spo2)
+                data_update('Processing data', finger, pulse_rate, spo2)
                 finger_out = False
                 low_signal_quality = False
     
     # Set up an oximeter instance and initiate live data stream
-    oxi = cms50ew.CMS50EW()
     if not oxi.setup_device(target=args.device, is_bluetooth=args.bluetooth):
         print('Connection attempt unsuccessful.')
         sys.exit(1)
     init_live_data()
+
+def exit_nicely(signal, frame):
+    if args.csv:
+        print('\nSaving live session data to: ' + str(args.csv) + ' ...')
+        oxi.write_csv(args.csv)
+    print('Closing device ...')
+    oxi.close_device()
+    sys.exit(0)
+
     
 def live():
     """Starts curses interface with live stream if action argument is 'live'"""
-    curses.wrapper(main)
+    if not args.raw:
+        curses.wrapper(main)
+    else:
+        main(0)
     
 def download():
     """Function to deal with 'download' action argument"""
@@ -144,6 +194,8 @@ parser_live = subparsers.add_parser('live', help='display live data in curses UI
 parser_live.set_defaults(func=live)
 parser_live.add_argument('-b', '--bluetooth', 
                          help='specify if connection is to be established via Bluetooth (default is serial)', action='store_true')
+parser_live.add_argument('-r', '--raw', help='use raw mode, i.e. print live data in a script-friendly manner as "<Finger out> <Pulse rate> <SpO2>"', action='store_true')
+parser_live.add_argument('--csv', metavar='file', help='store live session data in CSV file')
 parser_live.add_argument('device', help='specify serial port or MAC address of Bluetooth device')
 
 # Parser for 'download' action argument
@@ -160,6 +212,10 @@ parser_download.add_argument('--mpl', help='plot data with Matplotlib and displa
 
 # Parse arguments
 args = parser.parse_args()
+
+# Set up an oximeter instance and introduce signal handling
+oxi = cms50ew.CMS50EW()
+signal.signal(signal.SIGINT, exit_nicely)
 
 # Run action function
 args.func()

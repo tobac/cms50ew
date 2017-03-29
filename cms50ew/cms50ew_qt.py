@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 from PyQt5 import QtGui, QtCore
-from PyQt5.QtWidgets import QApplication, QWidget, QMainWindow, QDialog, QTableWidget, QTableWidgetItem, QLineEdit, QLabel, QSpacerItem, QSizePolicy, QFrame, QAction, QProgressDialog, QFileDialog
+from PyQt5.QtWidgets import QApplication, QWidget, QMainWindow, QDialog, QTableWidget, QTableWidgetItem, QLineEdit, QLabel, QSpacerItem, QSizePolicy, QFrame, QAction, QProgressDialog, QFileDialog, QMessageBox
 from PyQt5.QtWebEngineWidgets import QWebEngineView
 import pyqtgraph as pg
 import numpy as np
@@ -181,10 +181,11 @@ class LiveSaveDialog(QDialog):
         w.oxi.stored_data = []
         data_point = 1 # Skip first points as they have hard-coded values
         counter = 1
+        # The device sends approx. 60 data points per second.
+        # To save two per second is plenty, I think.
         save_every = round((len(w.oxi.pulse_xdata) / w.oxi.pulse_xdata[-1]) * 2)
         while data_point != w.oxi.n_data_points:
-            # The device sends approx. 60 data points per second.
-            # To save two per second is plenty, I think.
+
             if counter == save_every:
                 # Build list of values in format [time, finger_status, pulse_rate, spo2_value]
                 values = [ w.oxi.pulse_xdata[data_point], w.oxi.finger_data[data_point],
@@ -264,6 +265,11 @@ class SessionDialog(QDialog):
         self.saveCSVButton.setEnabled(False)
         self.saveCSVButton.clicked.connect(self.on_saveCSV)
         
+        self.eraseSessionButton = QtGui.QPushButton(self)
+        self.eraseSessionButton.setText('Erase session from device')
+        self.eraseSessionButton.setEnabled(False)
+        self.eraseSessionButton.clicked.connect(self.on_eraseSession)
+        
         self.verticalLayout = QtGui.QVBoxLayout(self)
         self.verticalLayout.addWidget(self.getInfoButton)
         self.verticalLayout.addWidget(self.sessionTable)
@@ -271,6 +277,7 @@ class SessionDialog(QDialog):
         self.verticalLayout.addWidget(self.plotPygalButton)
         self.verticalLayout.addWidget(self.plotMplButton)
         self.verticalLayout.addWidget(self.saveCSVButton)
+        self.verticalLayout.addWidget(self.eraseSessionButton)
         self.verticalLayout.addWidget(self.buttonBox)
         self.resize(600, 700)
         
@@ -328,6 +335,21 @@ class SessionDialog(QDialog):
             w.oxi.write_csv(filename)
         else:
             print('No file selected')
+            
+    def on_eraseSession(self):
+        # Erasing a session doesn't work right now
+        reply = QMessageBox.question(self, 'Confirm erasure',
+                                     'The stored session will be permanently erased from the device. Do you want to continue?', 
+                                     QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        
+        if reply == QMessageBox.Yes:
+            w.oxi.erase_session()
+            self.getInfoButton.setText('Recorded session erased.')
+            self.plotButton.setEnabled(False)
+            self.plotPygalButton.setEnabled(False)
+            self.plotMplButton.setEnabled(False)
+            self.saveCSVButton.setEnabled(False)
+            self.eraseSessionButton.setEnabled(False)
             
 class PlotPygal(QDialog):
     def __init__(self, live=False):
@@ -401,6 +423,8 @@ class DownloadDataThread(QtCore.QThread):
         w.sessDialog.plotPygalButton.setEnabled(True)
         w.sessDialog.plotMplButton.setEnabled(True)
         w.sessDialog.saveCSVButton.setEnabled(True)
+        w.sessDialog.eraseSessionButton.setEnabled(False)
+        w.sessDialog.getInfoButton.setText('Download finished.')
         print('Downloading data finished')
         
 class DownloadData(QProgressDialog):
@@ -484,7 +508,9 @@ class DeviceDialog(QDialog):
         self.verticalLayout.addWidget(self.devicesTable)
         self.verticalLayout.addWidget(self.infoTable)
         self.verticalLayout.addWidget(self.buttonBox)
-        self.resize(600, 800)
+        self.setSizePolicy(QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding)
+        self.adjustSize()
+        self.resize(500, 680)
         
     def scan(self):
         """Scan for devices and populate table with results. """
@@ -578,12 +604,12 @@ class LiveThread(QtCore.QThread):
         """
         w.cw.pulse_curve.clear()
         w.cw.spo2_curve.clear()
-        starttime = time.time()
+        self.oxi.starttime = time.time()
         while w.live_running:
-            w.oxi.initiate_device()
-            w.oxi.send_cmd(w.oxi.cmd_get_live_data)
+            self.oxi.initiate_device()
+            self.oxi.send_cmd(self.oxi.cmd_get_live_data)
             try:
-                self.update_plot(starttime)
+                self.update_plot()
             except (TypeError, bluetooth.btcommon.BluetoothError):
                 # The following if condition prevents printing the restarting message 
                 # if oxi.close_device is called while thread is running
@@ -599,17 +625,16 @@ class LiveThread(QtCore.QThread):
         # 'Finger out' and 'Low signal quality' events; see self.update_plot() 
         # for more details
         self.oxi.timer = time.time()
-        self.oxi.pulse_xdata.append(self.oxi.timer - self.starttime)
+        self.oxi.pulse_xdata.append(self.oxi.timer - self.oxi.starttime)
         self.oxi.pulse_ydata.append(pulse_rate)
-        self.oxi.spo2_xdata.append(self.oxi.timer - self.starttime)
+        self.oxi.spo2_xdata.append(self.oxi.timer - self.oxi.starttime)
         self.oxi.spo2_ydata.append(spo2)
         self.oxi.finger_data.append(self.finger)
         
-    def update_plot(self, starttime):
+    def update_plot(self):
         """Feeds plotting process with live data."""
 
         # The following variables serve to update the status only once if nothing changes
-        self.starttime = starttime
         finger_out = False
         low_signal_quality = False
         processing_data = False
