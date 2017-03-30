@@ -15,6 +15,10 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         
+        self.openSessAction = QAction(QtGui.QIcon('icons/document-open-symbolic.svg'),
+                                      'Open CSV session file', self)
+        self.openSessAction.triggered.connect(self.on_openSessAction)
+        
         btDialogAction = QAction(QtGui.QIcon('icons/network-bluetooth.svg'),
                                  'Open Bluetooth device', self)
         btDialogAction.triggered.connect(self.on_btDialogAction)
@@ -49,6 +53,7 @@ class MainWindow(QMainWindow):
                                   
         toolBar = self.addToolBar('Toolbar')
         toolBar.setMovable(0)
+        toolBar.addAction(self.openSessAction)
         toolBar.addAction(btDialogAction)
         toolBar.addAction(serDialogAction)
         toolBar.addSeparator()
@@ -71,6 +76,15 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(self.cw)
         
         self.show()
+        
+    def on_openSessAction(self):
+        filename = QFileDialog.getOpenFileName(self)[0]
+        
+        if filename:
+            self.oxi = cms50ew.CMS50EW()
+            self.oxi.open_csv(filename)
+            sessDialog = SessionDialog(is_csv=True)
+            sessDialog.exec_()
         
     def on_btDialogAction(self):
         self.devDialog = DeviceDialog(is_bluetooth=True)
@@ -188,7 +202,7 @@ class LiveSaveDialog(QDialog):
 
             if counter == save_every:
                 # Build list of values in format [time, finger_status, pulse_rate, spo2_value]
-                values = [ w.oxi.pulse_xdata[data_point], w.oxi.finger_data[data_point],
+                values = [ round(w.oxi.pulse_xdata[data_point], 2), w.oxi.finger_data[data_point],
                           w.oxi.pulse_ydata[data_point], w.oxi.spo2_ydata[data_point]]
                 # Append value list to stored_data list.
                 w.oxi.stored_data.append(values)
@@ -220,9 +234,10 @@ class LiveSaveDialog(QDialog):
             print('No file selected')
         
 class SessionDialog(QDialog):
-    def __init__(self):
+    def __init__(self, is_csv=False):
         super().__init__()
         
+        self.is_csv = is_csv
         self.setWindowTitle('Select stored data')
         self.setWindowIcon(QtGui.QIcon('icons/pulse.svg')) 
         
@@ -232,7 +247,7 @@ class SessionDialog(QDialog):
         self.buttonBox.rejected.connect(self.close)
         
         self.getInfoButton = QtGui.QPushButton(self)
-        self.getInfoButton.setText('Retrieve session information')
+        self.getInfoButton.setText('Get session information')
         self.getInfoButton.clicked.connect(self.getInfo)
         
         self.sessionTable = QTableWidget()
@@ -284,21 +299,33 @@ class SessionDialog(QDialog):
     def getInfo(self):
         self.getInfoButton.setText('Retrieving session information ...')
         
-        w.oxi.initiate_device()
-        w.oxi.get_user()
-        w.oxi.get_session_count()
-        w.oxi.get_session_duration()
+        if not self.is_csv:
+            w.oxi.initiate_device()
+            w.oxi.get_user()
+            w.oxi.get_session_count()
+            w.oxi.get_session_duration()
         
-        self.sessionTable.setItem(0, 0, QTableWidgetItem(w.oxi.sess_available))
-        self.sessionTable.setItem(1, 0, QTableWidgetItem(w.oxi.user))
-        self.sessionTable.setItem(2, 0, QTableWidgetItem(str(w.oxi.sess_duration)))
-        self.sessionTable.setItem(3, 0, QTableWidgetItem(str(w.oxi.sess_data_points)))
-        self.getInfoButton.setText('Done. Double-click info to download')
+            self.sessionTable.setItem(0, 0, QTableWidgetItem(w.oxi.sess_available))
+            self.sessionTable.setItem(1, 0, QTableWidgetItem(w.oxi.user))
+            self.sessionTable.setItem(2, 0, QTableWidgetItem(str(w.oxi.sess_duration)))
+            self.sessionTable.setItem(3, 0, QTableWidgetItem(str(w.oxi.sess_data_points)))
+            self.getInfoButton.setText('Done. Double-click info to download')
+        else:
+            self.sessionTable.setItem(0, 0, QTableWidgetItem(w.oxi.sess_available))
+            self.sessionTable.setItem(1, 0, QTableWidgetItem('n/a from CSV file'))
+            self.sessionTable.setItem(2, 0, QTableWidgetItem(str(w.oxi.sess_duration)))
+            self.sessionTable.setItem(3, 0, QTableWidgetItem('n/a from CSV file'))
+            self.sessionTable.setItem(4, 0, QTableWidgetItem(str(len(w.oxi.stored_data))))
+            self.getInfoButton.setText('Done.')
+            self.plotButton.setEnabled(True)
+            self.plotPygalButton.setEnabled(True)
+            self.plotMplButton.setEnabled(True)
         
     def getSessionData(self):
-        self.dlThread = DownloadDataThread()
-        self.dlThread.start()
-        
+        if not self.is_csv:
+            self.dlThread = DownloadDataThread()
+            self.dlThread.start()
+            
     def on_plotData(self):
         # Reset plot data and rendered plot
         w.oxi.pulse_xdata = []
@@ -307,21 +334,19 @@ class SessionDialog(QDialog):
         w.oxi.spo2_ydata = []
         w.cw.pulse_curve.clear()
         w.cw.spo2_curve.clear()
-        
-        # Fill plot data
+
         for data in w.oxi.stored_data:
             w.oxi.pulse_ydata.append(data[2])
             w.oxi.pulse_xdata.append(data[0])
             w.oxi.spo2_ydata.append(data[3])
-            w.oxi.spo2_xdata.append(data[0])
         
         # Render plot
         w.cw.pulse_curve.setData(w.oxi.pulse_xdata, w.oxi.pulse_ydata)
-        w.cw.spo2_curve.setData(w.oxi.spo2_xdata, w.oxi.spo2_ydata)
-        
+        w.cw.spo2_curve.setData(w.oxi.pulse_xdata, w.oxi.spo2_ydata)
+            
     def on_plotPygal(self):
         self.close()
-        plotPygal = PlotPygal()
+        plotPygal = PlotPygal(live=self.is_csv)
         plotPygal.exec_()
         
     def on_plotMpl(self):

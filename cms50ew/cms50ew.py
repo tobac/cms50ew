@@ -293,7 +293,21 @@ class CMS50EW():
         """Writes Pygal plot as SVG."""
         with open(filename, 'wb') as file:
             file.write(self.chart)
-            
+    
+    def open_csv(self, filename):
+        """Opens and processes CSV session file."""
+        with open(filename, 'r') as file:
+            reader = csv.reader(file)
+            next(reader) # Skip header
+            self.stored_data = []
+            for row in reader:
+                self.stored_data.append([float(row[0]), row[1], int(row[2]), int(row[3])])
+        if (len(self.stored_data)) > 1:
+            self.sess_available = 'Yes'
+            self.sess_duration = datetime.timedelta(seconds=self.stored_data[-1][0])
+        else:
+            self.sess_available = 'No'
+        
     def erase_session(self):
         """
         Erases the stored session from the device.
