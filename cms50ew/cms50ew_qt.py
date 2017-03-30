@@ -194,27 +194,23 @@ class LiveSaveDialog(QDialog):
         # Empty list in case a session was download before
         w.oxi.stored_data = []
         data_point = 1 # Skip first points as they have hard-coded values
-        counter = 1
-        # The device sends approx. 60 data points per second.
-        # To save two per second is plenty, I think.
-        save_every = round((len(w.oxi.pulse_xdata) / w.oxi.pulse_xdata[-1]) * 2)
+        
         while data_point != w.oxi.n_data_points:
-
-            if counter == save_every:
+            if w.oxi.stored_data: # Could still be empty
+                delta_time = w.oxi.stored_data[-1][0]
+            else:
+                delta_time = -1
+            
+            if (w.oxi.pulse_xdata[data_point] - delta_time) > 1: # Saving one data point 
+                                                                 # per second is plenty, 
+                                                                 # I think
                 # Build list of values in format [time, finger_status, pulse_rate, spo2_value]
-                values = [ round(w.oxi.pulse_xdata[data_point], 2), w.oxi.finger_data[data_point],
+                values = [ round(w.oxi.pulse_xdata[data_point]), w.oxi.finger_data[data_point],
                           w.oxi.pulse_ydata[data_point], w.oxi.spo2_ydata[data_point]]
                 # Append value list to stored_data list.
                 w.oxi.stored_data.append(values)
-                counter = 1
-            else:
-                counter += 1
             data_point += 1
-        print(w.oxi.stored_data)
-        print(len(w.oxi.stored_data))
-        print(w.oxi.n_data_points)
             
-        
     def on_plotPygal(self):
         self.close()
         plotPygal = PlotPygal(live=True)
@@ -228,7 +224,6 @@ class LiveSaveDialog(QDialog):
         self.close()
         filename = QFileDialog.getSaveFileName(self)[0]
         if filename:
-            print(filename)
             w.oxi.write_csv(filename)
         else:
             print('No file selected')
