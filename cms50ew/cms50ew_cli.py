@@ -80,7 +80,7 @@ def main(stdscr):
                 pass
         
     def update_live_data():
-        """Gets live data from oximeter instance, stores and displays it."""
+        """Gets, stores and displays live data from oximeter instance."""
         finger_out = False
         low_signal_quality = False
         global stdscr_height

@@ -22,6 +22,8 @@ class MainWindow(QMainWindow):
         btDialogAction = QAction(QtGui.QIcon('icons/network-bluetooth.svg'),
                                  'Open Bluetooth device', self)
         btDialogAction.triggered.connect(self.on_btDialogAction)
+        if bluetooth._bluetooth.hci_devid() == -1: # Check for availability of Bluetooth adapter
+            btDialogAction.setEnabled(False)
         
         serDialogAction = QAction(QtGui.QIcon('icons/usb.svg'), 
                                   'Open USB device', self)
@@ -109,8 +111,8 @@ class MainWindow(QMainWindow):
         else:
             self.live_running = False
             self.oxi.close_device()
-            self.oxi.setup_device(self.oxi.target, is_bluetooth=self.oxi.is_bluetooth)
             self.liveRunAction.setIcon(QtGui.QIcon('icons/media-playback-start-symbolic.svg'))
+            self.liveRunAction.setEnabled(False)
             self.statusBar.showMessage('Status: Disconnected')
             self.label_pulse_rate = QtGui.QLabel('Pulse rate: n/a')
             self.label_spo2 = QtGui.QLabel('SpO2: n/a')
@@ -150,8 +152,8 @@ class MainWidget(QWidget):
 
         pg.setConfigOptions(antialias=True)
 
-        self.pulse_curve = pulse_plot.plot(pen=pg.mkPen('g', width=2))
-        self.spo2_curve = spo2_plot.plot(pen=pg.mkPen('r', width=2))
+        self.pulse_curve = pulse_plot.plot(pen=pg.mkPen('r', width=2))
+        self.spo2_curve = spo2_plot.plot(pen=pg.mkPen('c', width=2))
         
         layout.addWidget(self.label_pulse_rate, 0, 0, 1, 0)
         layout.addWidget(self.label_spo2, 1, 0, 1, 0)
