@@ -110,6 +110,7 @@ class MainWindow(QMainWindow):
             self.statusBar.showMessage('Status: Initiating live stream ...')
         else:
             self.live_running = False
+            time.sleep(0.2) # Give thread the chance to end itself
             self.oxi.close_device()
             self.liveRunAction.setIcon(QtGui.QIcon('icons/media-playback-start-symbolic.svg'))
             self.liveRunAction.setEnabled(False)
@@ -626,10 +627,14 @@ class LiveThread(QtCore.QThread):
         """
         w.cw.pulse_curve.clear()
         w.cw.spo2_curve.clear()
+        self.oxi.pulse_xdata = []
+        self.oxi.pulse_ydata = []
+        self.oxi.spo2_xdata = []
+        self.oxi.spo2_ydata = []
+        self.oxi.initiate_device()
+        self.oxi.send_cmd(self.oxi.cmd_get_live_data)
         self.oxi.starttime = time.time()
         while w.live_running:
-            self.oxi.initiate_device()
-            self.oxi.send_cmd(self.oxi.cmd_get_live_data)
             try:
                 self.update_plot()
             except (TypeError, bluetooth.btcommon.BluetoothError):
@@ -637,7 +642,9 @@ class LiveThread(QtCore.QThread):
                 # if oxi.close_device is called while thread is running
                 if w.live_running:
                     print('Something happened.\nRestarting live feed ...')
-    
+                    self.oxi.initiate_device()
+                    self.oxi.send_cmd(self.oxi.cmd_get_live_data)  
+                    
     def append_plot_data(self, pulse_rate, spo2):
         """
         Helper function for self.update_plot() to append the actual live 
@@ -674,7 +681,7 @@ class LiveThread(QtCore.QThread):
             if self.finger == 'Y':
                 # The counter serves to suppress small hiccups where the device reports
                 # "Finger out" when it in fact isn't.
-                if not finger_out and (counter > 10):
+                if not finger_out and (counter > 20):
                     self.append_plot_data(0, 0)
                     w.statusBar.showMessage('Status: Finger out')
                     w.cw.label_pulse_rate.setText('Pulse rate: n/a')
@@ -684,8 +691,8 @@ class LiveThread(QtCore.QThread):
                     low_signal_quality = False
                     processing_data = False
                     counter = 0
-                elif not finger_out and (counter < 11):
-                    # If there have been less than 11 "Finger out" events, just
+                elif not finger_out and (counter < 21):
+                    # If there have been less than n "Finger out" events, just
                     # append the last valid value.
                     self.append_plot_data(self.oxi.pulse_ydata[-1],
                                           self.oxi.spo2_ydata[-1])
