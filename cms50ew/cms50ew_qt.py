@@ -196,7 +196,7 @@ class LiveSaveDialog(QDialog):
     def build_data_list(self):
         # Empty list in case a session was download before
         w.oxi.stored_data = []
-        data_point = 1 # Skip first points as they have hard-coded values
+        data_point = 0
         
         while data_point != w.oxi.n_data_points:
             if w.oxi.stored_data: # Could still be empty
