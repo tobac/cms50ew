@@ -6,12 +6,16 @@ import glob
 import datetime
 import pygal
 import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
 import csv
 
 class CMS50EW():
     """Class to instantiate a CMS50EW pulse oximeter."""
     def __init__(self):
         self.pulse_xdata, self.pulse_ydata, self.spo2_xdata, self.spo2_ydata, self.finger_data = [[0], [0], [0], [0], ['Y']]
+        self.x_label = 'Time [s]' # Define x-axis label for plots
+        self.x_values = []
+        self.plot_title = 'Saved session'
         self.n_data_points = 0
         self.timer = 0
         self.starttime = 0
@@ -214,7 +218,7 @@ class CMS50EW():
         """Writes session data as CSV file."""
         with open(filename, 'w') as f:
             datawriter = csv.writer(f, delimiter=',')
-            datawriter.writerow(['Time [s]', 'Finger out', 'Pulse rate [bpm]', 'SpO2 [%]'])
+            datawriter.writerow([self.x_label, 'Finger out', 'Pulse rate [bpm]', 'SpO2 [%]'])
             datawriter.writerows(self.stored_data)
     
     def close_device(self):
@@ -256,11 +260,11 @@ class CMS50EW():
                 x_labels.append(time)
                 
         line_chart = pygal.Line(truncate_label=-1, 
-                                x_title='Time [s]', 
+                                x_title=self.x_label, 
                                 show_minor_x_labels=False, 
                                 range=(0, 260), 
                                 secondary_range=(0, 100))
-        line_chart.title = 'Pulse rate and SpO2'
+        line_chart.title = self.plot_title
         line_chart.x_labels = x_labels
         line_chart.x_labels_major = x_labels_major
         line_chart.add('Pulse [bpm]', [data[2] for data in self.stored_data])
@@ -270,23 +274,34 @@ class CMS50EW():
         
     def plot_mpl(self):
         """Plots stored session data as Matplotlib plot."""
-        xlabels = [data[0] for data in self.stored_data]
         fig, pulse_plot = plt.subplots(figsize=(15,10))
         
-        pulse_plot.plot(xlabels, [data[2] for data in self.stored_data], c='red')
-        pulse_plot.set_title('Saved session', fontsize=24)
-        pulse_plot.set_xlabel('Time [s]', fontsize=24)
+        if self.x_label == 'Time':
+            xvalues = []
+            for value in self.x_values:
+                newdatetime = self.pydatetime + datetime.timedelta(0, value)
+                xvalues.append(newdatetime)
+        else:
+            xvalues = [data[0] for data in self.stored_data]
+
+        pulse_plot.plot(xvalues, [data[2] for data in self.stored_data], c='red')
+        pulse_plot.set_title(self.plot_title, fontsize=24)
+        pulse_plot.set_xlabel(self.x_label, fontsize=24)
         pulse_plot.set_ylabel('Pulse rate [bpm]', color='red', fontsize=20)
         pulse_plot.set_ylim([0, 220])
 
         spo2_plot = pulse_plot.twinx()
-        spo2_plot.plot(xlabels, [data[3] for data in self.stored_data], c='blue')
+        spo2_plot.plot(xvalues, [data[3] for data in self.stored_data], c='blue')
         spo2_plot.set_ylabel('SpO2 [%]', color='blue', fontsize=20)
         spo2_plot.set_ylim([0, 100])
 
         pulse_plot.tick_params(axis='both', labelsize=16)
         spo2_plot.tick_params(axis='both', labelsize=16)
-
+        
+        if self.x_label == 'Time':
+            fig.autofmt_xdate()
+            pulse_plot.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M:%S'))
+        
         plt.show()
         
     def write_svg(self, filename):

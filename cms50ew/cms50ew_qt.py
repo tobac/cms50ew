@@ -6,6 +6,7 @@ from PyQt5.QtWebEngineWidgets import QWebEngineView
 import pyqtgraph as pg
 import numpy as np
 import time
+import datetime
 import sys
 # Bluetooth is imported solely to handle exceptions; needs some rethinking.
 import bluetooth
@@ -248,6 +249,12 @@ class SessionDialog(QDialog):
         self.getInfoButton.setText('Get session information')
         self.getInfoButton.clicked.connect(self.getInfo)
         
+        self.dateTimeEdit = QtGui.QDateTimeEdit()
+        self.currentdatetime = QtCore.QDateTime.currentDateTime()
+        self.dateTimeEdit.setDateTime(self.currentdatetime)
+        self.dateTimeEdit.setCalendarPopup(True)
+        self.dateTimeEdit.setEnabled(False)
+        
         self.sessionTable = QTableWidget()
         # Make the table uneditable
         self.sessionTable.setEditTriggers(QtGui.QAbstractItemView.NoEditTriggers)
@@ -285,6 +292,7 @@ class SessionDialog(QDialog):
         
         self.verticalLayout = QtGui.QVBoxLayout(self)
         self.verticalLayout.addWidget(self.getInfoButton)
+        self.verticalLayout.addWidget(self.dateTimeEdit)
         self.verticalLayout.addWidget(self.sessionTable)
         self.verticalLayout.addWidget(self.plotButton)
         self.verticalLayout.addWidget(self.plotPygalButton)
@@ -292,7 +300,7 @@ class SessionDialog(QDialog):
         self.verticalLayout.addWidget(self.saveCSVButton)
         self.verticalLayout.addWidget(self.eraseSessionButton)
         self.verticalLayout.addWidget(self.buttonBox)
-        self.resize(600, 700)
+        self.resize(600, 750)
         
     def getInfo(self):
         self.getInfoButton.setText('Retrieving session information ...')
@@ -315,9 +323,28 @@ class SessionDialog(QDialog):
             self.sessionTable.setItem(3, 0, QTableWidgetItem('n/a from CSV file'))
             self.sessionTable.setItem(4, 0, QTableWidgetItem(str(len(w.oxi.stored_data))))
             self.getInfoButton.setText('Done.')
+            self.dateTimeEdit.setEnabled(True)
             self.plotButton.setEnabled(True)
             self.plotPygalButton.setEnabled(True)
             self.plotMplButton.setEnabled(True)
+            
+    def convertDateTime(self):
+        """Replace delta seconds with absolute time if one was given."""
+        w.oxi.x_label = 'Time [s]' # Reset string in case of replotting
+        if self.currentdatetime != self.dateTimeEdit.dateTime():
+            print('Converting date/time')
+            qdatetime = self.dateTimeEdit.dateTime()
+            w.oxi.pydatetime = qdatetime.toPyDateTime()
+        
+            for data in w.oxi.stored_data:
+                newtime = w.oxi.pydatetime + datetime.timedelta(0, data[0])
+                w.oxi.x_values.append(data[0]) # Copy original values for Matplotlib
+                data[0] = newtime.time().strftime('%H:%M:%S')
+            w.oxi.x_label = 'Time'
+            enddatetime = w.oxi.pydatetime + datetime.timedelta(0, w.oxi.x_values[-1])
+            w.oxi.plot_title = str('Recorded session from ' + 
+                                   w.oxi.pydatetime.strftime('%d %B %Y, %H:%M:%S') + ' to ' 
+                                   + enddatetime.strftime('%d %B %Y, %H:%M:%S'))
         
     def getSessionData(self):
         if not self.is_csv:
@@ -343,18 +370,20 @@ class SessionDialog(QDialog):
         w.cw.spo2_curve.setData(w.oxi.pulse_xdata, w.oxi.spo2_ydata)
             
     def on_plotPygal(self):
+        self.convertDateTime()
         self.close()
         plotPygal = PlotPygal(live=self.is_csv)
         plotPygal.exec_()
         
     def on_plotMpl(self):
+        self.convertDateTime()
         self.close()
         w.oxi.plot_mpl()
         
     def on_saveCSV(self):
         filename = QFileDialog.getSaveFileName(self)[0]
         if filename:
-            print(filename)
+            self.convertDateTime()
             w.oxi.write_csv(filename)
         else:
             print('No file selected')
@@ -437,11 +466,11 @@ class DownloadDataThread(QtCore.QThread):
                 self.diag.setValue(value)
             else:
                 self.diag.setValue(w.oxi.sess_data_points)
-                print('Setting value to:', w.oxi.sess_data_points)
             value += 1
         self.diag.setValue(w.oxi.sess_data_points)
         w.sessDialog.sessionTable.setItem(4, 0,
                                              QTableWidgetItem(str(len(w.oxi.stored_data))))
+        w.sessDialog.dateTimeEdit.setEnabled(True)
         w.sessDialog.plotButton.setEnabled(True)
         w.sessDialog.plotPygalButton.setEnabled(True)
         w.sessDialog.plotMplButton.setEnabled(True)
