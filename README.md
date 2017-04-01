@@ -75,8 +75,7 @@ optional arguments:
 
 ### Qt5 interface
 ![Main window](screenshots/main_window.png)
-![Serial device dialog](screenshots/device_serial.png)
-![Bluetooth device dialog](screenshots/device_bt.png)
+![Serial device dialog](screenshots/device_serial.png) ![Bluetooth device dialog](screenshots/device_bt.png) ![Session dialog](screenshots/session_dialog.png)
 ![Live data](screenshots/live_data_qt.png)
 ![Plot recorded session using Matplotlib](screenshots/recorded_matplotlib.png)
 ![Plot recorded session using Pygal](screenshots/recorded_pygal.png)
