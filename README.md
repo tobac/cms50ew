@@ -18,7 +18,9 @@ optional arguments:
 ```
 ### Usage of 'live' action
 ```
-usage: cms50ew_cli.py live [-h] [-b] device
+usage: cms50ew_cli.py live [-h] [-b] [-r] [--csv file] [--pygal file] [--mpl]
+                           [--datetime]
+                           device
 
 positional arguments:
   device           specify serial port or MAC address of Bluetooth device
@@ -27,22 +29,30 @@ optional arguments:
   -h, --help       show this help message and exit
   -b, --bluetooth  specify if connection is to be established via Bluetooth
                    (default is serial)
+  -r, --raw        use raw mode, i.e. print live data in a script-friendly
+                   manner as "<Finger out> <Pulse rate> <SpO2>"
+  --csv file       store live session data in CSV file
+  --pygal file     plot live data with Pygal and store it as SVG
+  --mpl            plot live data with Matplotlib and display it
+  --datetime       use current time as start time for stored live session data
 ```
 ### Usage of 'download' action
 ```
 usage: cms50ew_cli.py download [-h] [-b] [--csv file] [--pygal file] [--mpl]
+                               [--datetime DATETIME]
                                device
 
 positional arguments:
-  device           specify serial port or MAC address of Bluetooth device
+  device               specify serial port or MAC address of Bluetooth device
 
 optional arguments:
-  -h, --help       show this help message and exit
-  -b, --bluetooth  specify if connection is to be established via Bluetooth
-                   (default is serial)
-  --csv file       store saved data in CSV file
-  --pygal file     plot data with Pygal and store it as SVG
-  --mpl            plot data with Matplotlib and display it
+  -h, --help           show this help message and exit
+  -b, --bluetooth      specify if connection is to be established via
+                       Bluetooth (default is serial)
+  --csv file           store saved data in CSV file
+  --pygal file         plot data with Pygal and store it as SVG
+  --mpl                plot data with Matplotlib and display it
+  --datetime DATETIME  specify start time of recording, e.g. 16 Mar 2017 22:30
 ```            
 ## Examples
 

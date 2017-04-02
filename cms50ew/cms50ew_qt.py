@@ -335,16 +335,7 @@ class SessionDialog(QDialog):
             print('Converting date/time')
             qdatetime = self.dateTimeEdit.dateTime()
             w.oxi.pydatetime = qdatetime.toPyDateTime()
-        
-            for data in w.oxi.stored_data:
-                newtime = w.oxi.pydatetime + datetime.timedelta(0, data[0])
-                w.oxi.x_values.append(data[0]) # Copy original values for Matplotlib
-                data[0] = newtime.time().strftime('%H:%M:%S')
-            w.oxi.x_label = 'Time'
-            enddatetime = w.oxi.pydatetime + datetime.timedelta(0, w.oxi.x_values[-1])
-            w.oxi.plot_title = str('Recorded session from ' + 
-                                   w.oxi.pydatetime.strftime('%d %B %Y, %H:%M:%S') + ' to ' 
-                                   + enddatetime.strftime('%d %B %Y, %H:%M:%S'))
+            w.oxi.convert_datetime()
         
     def getSessionData(self):
         if not self.is_csv:

@@ -5,8 +5,10 @@ import curses
 import cms50ew
 import sys
 import time
+import datetime
 import signal
 import bluetooth
+import dateutil.parser as duparser
 
 def main(stdscr):
     """Sets up a curses screen."""
@@ -105,11 +107,7 @@ def main(stdscr):
             if not args.raw:
                 c = stdscr.getch()
                 if c == ord('q'):
-                    if args.csv:
-                        print('\nSaving live session data to: ' + str(args.csv) + ' ...')
-                        oxi.write_csv(args.csv)
-                    oxi.close_device()
-                    sys.exit()
+                    exit_nicely(0, 0)
                 elif c == curses.KEY_RESIZE:
                     stdscr_height = stdscr.getmaxyx()[0]
                 
@@ -136,19 +134,30 @@ def main(stdscr):
     if not oxi.setup_device(target=args.device, is_bluetooth=args.bluetooth):
         print('Connection attempt unsuccessful.')
         sys.exit(1)
+    if args.datetime:
+        oxi.pydatetime = datetime.datetime.now()
     init_live_data()
 
 def exit_nicely(signal, frame):
+    if args.datetime:
+        oxi.convert_datetime()
     if args.csv:
         print('\nSaving live session data to: ' + str(args.csv) + ' ...')
         oxi.write_csv(args.csv)
+    if args.pygal:
+        print('Plotting downloaded data with Pygal and saving plot to: ' + str(args.pygal) + ' ...')
+        oxi.plot_pygal()
+        oxi.write_svg(args.pygal)
+    if args.mpl:
+        print('Plotting downloaded data with Matplotlib and displaying it ...')
+        oxi.plot_mpl()
     print('Closing device ...')
     oxi.close_device()
     sys.exit(0)
 
-    
 def live():
     """Starts curses interface with live stream if action argument is 'live'"""
+    
     if not args.raw:
         curses.wrapper(main)
     else:
@@ -157,6 +166,7 @@ def live():
 def download():
     """Function to deal with 'download' action argument"""
     oxi = cms50ew.CMS50EW()
+    print('Connecting to device ' + str(args.device) + ' ...')
     if not oxi.setup_device(target=args.device, is_bluetooth=args.bluetooth):
         raise Exception('Connection attempt unsuccessful.')
     oxi.initiate_device()
@@ -171,6 +181,14 @@ def download():
         counter += 1
     print('Downloaded data points:', len(oxi.stored_data))
     
+    if args.datetime:
+        try:
+            oxi.pydatetime = duparser.parse(args.datetime)
+        except ValueError:
+            raise argparse.ArgumentTypeError('No valid date format')
+        else:
+            oxi.convert_datetime()
+            
     if args.csv:
         print('Saving downloaded data to: ' + str(args.csv) + ' ...')
         oxi.write_csv(args.csv)
@@ -196,6 +214,10 @@ parser_live.add_argument('-b', '--bluetooth',
                          help='specify if connection is to be established via Bluetooth (default is serial)', action='store_true')
 parser_live.add_argument('-r', '--raw', help='use raw mode, i.e. print live data in a script-friendly manner as "<Finger out> <Pulse rate> <SpO2>"', action='store_true')
 parser_live.add_argument('--csv', metavar='file', help='store live session data in CSV file')
+parser_live.add_argument('--pygal', metavar='file', help='plot live data with Pygal and store it as SVG')
+parser_live.add_argument('--mpl', help='plot live data with Matplotlib and display it',
+                             action='store_true')
+parser_live.add_argument('--datetime', help='use current time as start time for stored live session data', action='store_true')
 parser_live.add_argument('device', help='specify serial port or MAC address of Bluetooth device')
 
 # Parser for 'download' action argument
@@ -209,6 +231,7 @@ parser_download.add_argument('--csv', metavar='file', help='store saved data in 
 parser_download.add_argument('--pygal', metavar='file', help='plot data with Pygal and store it as SVG')
 parser_download.add_argument('--mpl', help='plot data with Matplotlib and display it',
                              action='store_true')
+parser_download.add_argument('--datetime', help='specify start time of recording, e.g. 16 Mar 2017 22:30')
 
 # Parse arguments
 args = parser.parse_args()

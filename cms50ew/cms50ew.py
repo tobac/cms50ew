@@ -214,6 +214,18 @@ class CMS50EW():
             self.stored_data_time += 3 # A data point is stored every three seconds
             return True
         
+    def convert_datetime(self):
+        """Replaces time deltas with absolute time."""
+        for data in self.stored_data:
+            newtime = self.pydatetime + datetime.timedelta(0, data[0])
+            self.x_values.append(data[0]) # Copy original values for Matplotlib
+            data[0] = newtime.time().strftime('%H:%M:%S')
+        self.x_label = 'Time'
+        enddatetime = self.pydatetime + datetime.timedelta(0, self.x_values[-1])
+        self.plot_title = str('Recorded session from ' + 
+                                   self.pydatetime.strftime('%d %B %Y, %H:%M:%S') + ' to ' 
+                                   + enddatetime.strftime('%d %B %Y, %H:%M:%S'))
+        
     def write_csv(self, filename):
         """Writes session data as CSV file."""
         with open(filename, 'w') as f:
@@ -239,7 +251,6 @@ class CMS50EW():
             # Round to nearest multiple of 30 to get nice numbers (recorded data
             # consists of a data point every 3 seconds)
             x_labels_every = x_labels_every - (x_labels_every % 30)
-        print('X_labels_every:', x_labels_every)
         x_labels = []
         # Pygal's major labels feature is used to display a reasonable amount of labels
         x_labels_major = []
