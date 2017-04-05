@@ -242,4 +242,3 @@ signal.signal(signal.SIGINT, exit_nicely)
 
 # Run action function
 args.func()
-

@@ -260,12 +260,12 @@ class CMS50EW():
                 x_labels_major.append(None)
                 x_labels_n += 1
             else:
-                if live:
+                if live and self.x_label == 'Time [s]':
                     x_labels_major.append(round(time, 1))
                 else:
                     x_labels_major.append(time)
                 x_labels_n = 1
-            if live:
+            if live and self.x_label == 'Time [s]':
                 x_labels.append(round(time, 1))
             else:
                 x_labels.append(time)
@@ -375,4 +375,3 @@ class DeviceScan():
                 s.close()
             except serial.SerialException:
                 pass
-

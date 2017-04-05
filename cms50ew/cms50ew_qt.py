@@ -122,7 +122,7 @@ class MainWindow(QMainWindow):
             self.sessDialogAction.setEnabled(True)
             
     def on_liveSaveAction(self):
-        self.saveDialog = LiveSaveDialog()
+        self.saveDialog = SessionDialog(is_live=True)
         self.saveDialog.exec_()
     
     def on_quitAction(self):
@@ -162,81 +162,12 @@ class MainWidget(QWidget):
         layout.addWidget(pulse_plot, 2, 0, 1, 1)
         layout.addWidget(spo2_plot, 2, 1, 1, 1)
         
-class LiveSaveDialog(QDialog):
-    def __init__(self):
-        super().__init__()
-        
-        self.setWindowTitle('Save live data')
-        self.setWindowIcon(QtGui.QIcon('icons/pulse.svg'))
-        
-        self.buttonBox = QtGui.QDialogButtonBox(self)
-        self.buttonBox.setOrientation(QtCore.Qt.Horizontal)
-        self.buttonBox.setStandardButtons(QtGui.QDialogButtonBox.Cancel)
-        self.buttonBox.rejected.connect(self.close)
-        
-        self.plotPygalButton = QtGui.QPushButton(self)
-        self.plotPygalButton.setText('Plot with Pygal')
-        self.plotPygalButton.clicked.connect(self.on_plotPygal)
-        
-        self.plotMplButton = QtGui.QPushButton(self)
-        self.plotMplButton.setText('Plot with Matplotlib')
-        self.plotMplButton.clicked.connect(self.on_plotMpl)
-        
-        self.saveCSVButton = QtGui.QPushButton(self)
-        self.saveCSVButton.setText('Save data as CSV file')
-        self.saveCSVButton.clicked.connect(self.on_saveCSV)
-        
-        self.verticalLayout = QtGui.QVBoxLayout(self)
-        self.verticalLayout.addWidget(self.plotPygalButton)
-        self.verticalLayout.addWidget(self.plotMplButton)
-        self.verticalLayout.addWidget(self.saveCSVButton)
-        self.verticalLayout.addWidget(self.buttonBox)
-        
-        self.build_data_list()
-        
-    def build_data_list(self):
-        # Empty list in case a session was download before
-        w.oxi.stored_data = []
-        data_point = 0
-        
-        while data_point != w.oxi.n_data_points:
-            if w.oxi.stored_data: # Could still be empty
-                delta_time = w.oxi.stored_data[-1][0]
-            else:
-                delta_time = -1
-            
-            if (w.oxi.pulse_xdata[data_point] - delta_time) > 1: # Saving one data point 
-                                                                 # per second is plenty, 
-                                                                 # I think
-                # Build list of values in format [time, finger_status, pulse_rate, spo2_value]
-                values = [ round(w.oxi.pulse_xdata[data_point]), w.oxi.finger_data[data_point],
-                          w.oxi.pulse_ydata[data_point], w.oxi.spo2_ydata[data_point]]
-                # Append value list to stored_data list.
-                w.oxi.stored_data.append(values)
-            data_point += 1
-            
-    def on_plotPygal(self):
-        self.close()
-        plotPygal = PlotPygal(live=True)
-        plotPygal.exec_()
-        
-    def on_plotMpl(self):
-        self.close()
-        w.oxi.plot_mpl()
-        
-    def on_saveCSV(self):
-        self.close()
-        filename = QFileDialog.getSaveFileName(self)[0]
-        if filename:
-            w.oxi.write_csv(filename)
-        else:
-            print('No file selected')
-        
 class SessionDialog(QDialog):
-    def __init__(self, is_csv=False):
+    def __init__(self, is_csv=False, is_live=False):
         super().__init__()
         
         self.is_csv = is_csv
+        self.is_live = is_live
         self.setWindowTitle('Select stored data')
         self.setWindowIcon(QtGui.QIcon('icons/pulse.svg')) 
         
@@ -305,18 +236,7 @@ class SessionDialog(QDialog):
     def getInfo(self):
         self.getInfoButton.setText('Retrieving session information ...')
         
-        if not self.is_csv:
-            w.oxi.initiate_device()
-            w.oxi.get_user()
-            w.oxi.get_session_count()
-            w.oxi.get_session_duration()
-        
-            self.sessionTable.setItem(0, 0, QTableWidgetItem(w.oxi.sess_available))
-            self.sessionTable.setItem(1, 0, QTableWidgetItem(w.oxi.user))
-            self.sessionTable.setItem(2, 0, QTableWidgetItem(str(w.oxi.sess_duration)))
-            self.sessionTable.setItem(3, 0, QTableWidgetItem(str(w.oxi.sess_data_points)))
-            self.getInfoButton.setText('Done. Double-click info to download')
-        else:
+        if self.is_csv:
             self.sessionTable.setItem(0, 0, QTableWidgetItem(w.oxi.sess_available))
             self.sessionTable.setItem(1, 0, QTableWidgetItem('n/a from CSV file'))
             self.sessionTable.setItem(2, 0, QTableWidgetItem(str(w.oxi.sess_duration)))
@@ -327,6 +247,29 @@ class SessionDialog(QDialog):
             self.plotButton.setEnabled(True)
             self.plotPygalButton.setEnabled(True)
             self.plotMplButton.setEnabled(True)
+        elif self.is_live:
+            self.build_data_list()
+            self.sessionTable.setItem(0, 0, QTableWidgetItem(w.oxi.sess_available))
+            self.sessionTable.setItem(1, 0, QTableWidgetItem('n/a from live data'))
+            self.sessionTable.setItem(2, 0, QTableWidgetItem(str(w.oxi.sess_duration)))
+            self.sessionTable.setItem(3, 0, QTableWidgetItem('n/a from live data'))
+            self.sessionTable.setItem(4, 0, QTableWidgetItem(str(len(w.oxi.stored_data))))
+            self.getInfoButton.setText('Done.')
+            self.dateTimeEdit.setEnabled(True)
+            self.plotButton.setEnabled(True)
+            self.plotPygalButton.setEnabled(True)
+            self.plotMplButton.setEnabled(True)
+        else:
+            w.oxi.initiate_device()
+            w.oxi.get_user()
+            w.oxi.get_session_count()
+            w.oxi.get_session_duration()
+        
+            self.sessionTable.setItem(0, 0, QTableWidgetItem(w.oxi.sess_available))
+            self.sessionTable.setItem(1, 0, QTableWidgetItem(w.oxi.user))
+            self.sessionTable.setItem(2, 0, QTableWidgetItem(str(w.oxi.sess_duration)))
+            self.sessionTable.setItem(3, 0, QTableWidgetItem(str(w.oxi.sess_data_points)))
+            self.getInfoButton.setText('Done. Double-click info to download')
             
     def convertDateTime(self):
         """Replace delta seconds with absolute time if one was given."""
@@ -338,10 +281,34 @@ class SessionDialog(QDialog):
             w.oxi.convert_datetime()
         
     def getSessionData(self):
-        if not self.is_csv:
+        if not self.is_csv and not self.is_live:
             self.dlThread = DownloadDataThread()
             self.dlThread.start()
+    
+    def build_data_list(self):
+        # Empty list in case a session was download before
+        w.oxi.stored_data = []
+        data_point = 0
+        
+        while data_point != w.oxi.n_data_points:
+            if w.oxi.stored_data: # Could still be empty
+                delta_time = w.oxi.stored_data[-1][0]
+            else:
+                delta_time = -1
             
+            if (w.oxi.pulse_xdata[data_point] - delta_time) > 1: # Saving one data point 
+                                                                 # per second is plenty, 
+                                                                 # I think
+                # Build list of values in format [time, finger_status, pulse_rate, spo2_value]
+                values = [ round(w.oxi.pulse_xdata[data_point]), w.oxi.finger_data[data_point],
+                          w.oxi.pulse_ydata[data_point], w.oxi.spo2_ydata[data_point]]
+                # Append value list to stored_data list.
+                w.oxi.stored_data.append(values)
+            data_point += 1
+        
+        w.oxi.sess_available = 'Yes'
+        w.oxi.sess_duration = datetime.timedelta(seconds=w.oxi.stored_data[-1][0])
+    
     def on_plotData(self):
         # Reset plot data and rendered plot
         w.oxi.pulse_xdata = []
@@ -363,7 +330,9 @@ class SessionDialog(QDialog):
     def on_plotPygal(self):
         self.convertDateTime()
         self.close()
-        plotPygal = PlotPygal(live=self.is_csv)
+        if self.is_csv or self.is_live:
+            livemode = True
+        plotPygal = PlotPygal(live=livemode)
         plotPygal.exec_()
         
     def on_plotMpl(self):
@@ -752,5 +721,4 @@ if __name__ == '__main__':
     app = QApplication(sys.argv)
     w = MainWindow()
 
-    app.exec_()  
-
+    app.exec_()
