@@ -259,6 +259,7 @@ class SessionDialog(QDialog):
             self.plotButton.setEnabled(True)
             self.plotPygalButton.setEnabled(True)
             self.plotMplButton.setEnabled(True)
+            self.saveCSVButton.setEnabled(True)
         else:
             w.oxi.initiate_device()
             w.oxi.get_user()
