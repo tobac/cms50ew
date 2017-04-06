@@ -180,9 +180,16 @@ class SessionDialog(QDialog):
         self.getInfoButton.setText('Get session information')
         self.getInfoButton.clicked.connect(self.getInfo)
         
+        self.dateCheckBox = QtGui.QCheckBox(self)
+        self.dateCheckBox.setText('Use date/time instead of seconds')
+        self.dateCheckBox.stateChanged.connect(self.on_dateCheck)
+        
         self.dateTimeEdit = QtGui.QDateTimeEdit()
-        self.currentdatetime = QtCore.QDateTime.currentDateTime()
-        self.dateTimeEdit.setDateTime(self.currentdatetime)
+        if self.is_live:
+            self.dateTimeEdit.setDateTime(w.oxi.currentdatetime)
+        else:
+            self.currentdatetime = QtCore.QDateTime.currentDateTime()
+            self.dateTimeEdit.setDateTime(self.currentdatetime)
         self.dateTimeEdit.setCalendarPopup(True)
         self.dateTimeEdit.setEnabled(False)
         
@@ -223,6 +230,7 @@ class SessionDialog(QDialog):
         
         self.verticalLayout = QtGui.QVBoxLayout(self)
         self.verticalLayout.addWidget(self.getInfoButton)
+        self.verticalLayout.addWidget(self.dateCheckBox)
         self.verticalLayout.addWidget(self.dateTimeEdit)
         self.verticalLayout.addWidget(self.sessionTable)
         self.verticalLayout.addWidget(self.plotButton)
@@ -243,7 +251,7 @@ class SessionDialog(QDialog):
             self.sessionTable.setItem(3, 0, QTableWidgetItem('n/a from CSV file'))
             self.sessionTable.setItem(4, 0, QTableWidgetItem(str(len(w.oxi.stored_data))))
             self.getInfoButton.setText('Done.')
-            self.dateTimeEdit.setEnabled(True)
+            #self.dateTimeEdit.setEnabled(True)
             self.plotButton.setEnabled(True)
             self.plotPygalButton.setEnabled(True)
             self.plotMplButton.setEnabled(True)
@@ -255,7 +263,7 @@ class SessionDialog(QDialog):
             self.sessionTable.setItem(3, 0, QTableWidgetItem('n/a from live data'))
             self.sessionTable.setItem(4, 0, QTableWidgetItem(str(len(w.oxi.stored_data))))
             self.getInfoButton.setText('Done.')
-            self.dateTimeEdit.setEnabled(True)
+            #self.dateTimeEdit.setEnabled(True)
             self.plotButton.setEnabled(True)
             self.plotPygalButton.setEnabled(True)
             self.plotMplButton.setEnabled(True)
@@ -275,7 +283,7 @@ class SessionDialog(QDialog):
     def convertDateTime(self):
         """Replace delta seconds with absolute time if one was given."""
         w.oxi.x_label = 'Time [s]' # Reset string in case of replotting
-        if self.currentdatetime != self.dateTimeEdit.dateTime():
+        if self.dateCheckBox.isChecked():
             print('Converting date/time')
             qdatetime = self.dateTimeEdit.dateTime()
             w.oxi.pydatetime = qdatetime.toPyDateTime()
@@ -327,6 +335,12 @@ class SessionDialog(QDialog):
         # Render plot
         w.cw.pulse_curve.setData(w.oxi.pulse_xdata, w.oxi.pulse_ydata)
         w.cw.spo2_curve.setData(w.oxi.pulse_xdata, w.oxi.spo2_ydata)
+        
+    def on_dateCheck(self):
+        if self.dateCheckBox.isChecked():
+            self.dateTimeEdit.setEnabled(True)
+        else:
+            self.dateTimeEdit.setEnabled(False)
             
     def on_plotPygal(self):
         self.convertDateTime()
@@ -437,7 +451,7 @@ class DownloadDataThread(QtCore.QThread):
         self.diag.setValue(w.oxi.sess_data_points)
         w.sessDialog.sessionTable.setItem(4, 0,
                                              QTableWidgetItem(str(len(w.oxi.stored_data))))
-        w.sessDialog.dateTimeEdit.setEnabled(True)
+        #w.sessDialog.dateTimeEdit.setEnabled(True)
         w.sessDialog.plotButton.setEnabled(True)
         w.sessDialog.plotPygalButton.setEnabled(True)
         w.sessDialog.plotMplButton.setEnabled(True)
@@ -629,6 +643,7 @@ class LiveThread(QtCore.QThread):
         self.oxi.spo2_ydata = []
         self.oxi.initiate_device()
         self.oxi.send_cmd(self.oxi.cmd_get_live_data)
+        self.oxi.currentdatetime = QtCore.QDateTime.currentDateTime()
         self.oxi.starttime = time.time()
         while w.live_running:
             try:
