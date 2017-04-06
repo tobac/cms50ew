@@ -388,7 +388,13 @@ class PlotPygal(QDialog):
     def plotPygal(self):
         w.oxi.plot_pygal(live=self.live)
         
-        self.webW.setContent(w.oxi.chart, mimeType='image/svg+xml')
+        size = sys.getsizeof(w.oxi.chart)
+        if size > 2097152: # QWebEngineView can only directly display sizes up to 2 MiB
+                           # https://bugreports.qt.io/browse/QTBUG-53414
+                           # (I'm just assuming MiB, not MB.)
+            self.webW.setHtml('<p><center><big><b>The plot is too large to be displayed within this window. Save the file first and view it in a viewer of your choice.</b></big></center></p>')
+        else:
+            self.webW.setContent(w.oxi.chart, mimeType='image/svg+xml')
         self.show()
         
     def saveSVG(self):
